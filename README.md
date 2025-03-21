@@ -32,7 +32,7 @@ npm install
 Create a `.env` file in the root folder and add the following variables:
 
 ```ini
-WALLET_ADDRESS=your_wallet_address
+WALLET_ADDRESS=0xYourWalletAddress1,0xYourWalletAddress2,0xYourWalletAddress3
 EMAIL=recipient_email@example.com
 EMAIL_USER=your_smtp_email
 EMAIL_PASS=your_smtp_password
@@ -56,7 +56,7 @@ screen -r wallet-monitor
 ---
 
 ## ⚙️ How It Works
-1. The script **checks the wallet balance** on the supported networks every **10 minutes**.
+1. The script **checks the wallet balance** on the supported networks every **30 minutes**.
 2. If the balance drops **below 5 ETH**, an **email alert** is sent to the configured email.
 3. The script continues running **automatically**.
 
