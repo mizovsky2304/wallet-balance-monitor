@@ -1,9 +1,12 @@
-const { ethers } = require("ethers");
+require("dotenv").config();
+const ethers = require("ethers");
 const nodemailer = require("nodemailer");
-const dotenv = require("dotenv");
-dotenv.config();
 
-// Configuration des RPCs des réseaux
+// Configuration des variables d'environnement
+const wallets = process.env.WALLETS.split(",");
+const emailRecipient = process.env.EMAIL;
+const emailUser = process.env.EMAIL_USER;
+const emailPass = process.env.EMAIL_PASS;
 const networks = {
   "op-sepolia": "https://sepolia.optimism.io",
   "base-sepolia": "https://sepolia.base.org",
@@ -12,61 +15,53 @@ const networks = {
   "unichain-sepolia": "https://unichain-sepolia.drpc.org",
 };
 
-const walletAddress = process.env.WALLET_ADDRESS;
-const recipientEmail = process.env.EMAIL;
-
-if (!walletAddress || !recipientEmail) {
-  console.error(
-    "Veuillez définir WALLET_ADDRESS et EMAIL dans le fichier .env"
-  );
-  process.exit(1);
-}
-
-// Configurer le transporteur d'email
+// Transporteur pour l'envoi d'emails
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
+    user: emailUser,
+    pass: emailPass,
   },
 });
 
 async function checkBalances() {
-  for (const [network, rpc] of Object.entries(networks)) {
-    try {
+  for (const wallet of wallets) {
+    for (const [networkName, rpc] of Object.entries(networks)) {
       const provider = new ethers.JsonRpcProvider(rpc);
-      const balance = await provider.getBalance(walletAddress);
-      const balanceInEth = ethers.formatEther(balance);
+      try {
+        const balance = await provider.getBalance(wallet);
+        const balanceInEth = ethers.formatEther(balance);
+        console.log(`Wallet: ${wallet} - ${networkName}: ${balanceInEth} ETH`);
 
-      console.log(`${network}: ${balanceInEth} ETH`);
-
-      if (parseFloat(balanceInEth) < 5) {
-        await sendEmailAlert(network, balanceInEth);
+        if (parseFloat(balanceInEth) < 5) {
+          sendEmailAlert(wallet, networkName, balanceInEth);
+        }
+      } catch (error) {
+        console.error(`Error checking balance on ${networkName}:`, error);
       }
-    } catch (error) {
-      console.error(`Erreur sur ${network}:`, error);
     }
   }
 }
 
-async function sendEmailAlert(network, balance) {
+function sendEmailAlert(wallet, network, balance) {
   const mailOptions = {
-    from: process.env.EMAIL_USER,
-    to: recipientEmail,
-    subject: `Alerte de balance faible sur ${network}`,
-    text: `La balance du wallet ${walletAddress} sur ${network} est de ${balance} ETH, en dessous du seuil de 5 ETH.`,
+    from: emailUser,
+    to: emailRecipient,
+    subject: `⚠️ Low Balance Alert for ${wallet}`,
+    text: `The balance of wallet ${wallet} on ${network} has dropped below 5 ETH. Current balance: ${balance} ETH.`,
   };
 
-  try {
-    await transporter.sendMail(mailOptions);
-    console.log(`Email envoyé pour ${network}`);
-  } catch (error) {
-    console.error("Erreur lors de l'envoi de l'email:", error);
-  }
+  transporter.sendMail(mailOptions, (error, info) => {
+    if (error) {
+      console.error("Error sending email:", error);
+    } else {
+      console.log(`Email sent: ${info.response}`);
+    }
+  });
 }
 
-// Vérifier toutes les 10 minutes
-setInterval(checkBalances, 10 * 60 * 1000);
+// Vérifier les soldes toutes les 30 minutes
+setInterval(checkBalances, 30 * 60 * 1000);
 
-// Lancer la première vérification immédiatement
+// Lancer immédiatement une première vérification
 checkBalances();
